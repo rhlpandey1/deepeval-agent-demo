@@ -1,0 +1,10 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+.deepeval*
+.pytest_cache/
+.idea/
+.claude/
+.env.example
