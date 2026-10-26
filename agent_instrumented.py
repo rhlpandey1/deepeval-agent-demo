@@ -126,13 +126,23 @@ agent = create_agent(
 deepeval_callback = CallbackHandler()
 
 
+# def support_agent(user_input: str) -> str:
+#     """Run the agent on a user message and return the final reply."""
+#     # --- (3) NEW: pass the callback handler in the .invoke() config ------
+#     result = asyncio.run(agent.ainvoke(
+#         {"messages": [{"role": "user", "content": user_input}]},
+#         config={"callbacks": [deepeval_callback]},
+#     ))
+#     reply = result["messages"][-1].content
+#     update_current_trace(output=reply)
+#     return reply
+
 def support_agent(user_input: str) -> str:
-    """Run the agent on a user message and return the final reply."""
-    # --- (3) NEW: pass the callback handler in the .invoke() config ------
-    result = asyncio.run(agent.ainvoke(
+    result = agent.invoke(
         {"messages": [{"role": "user", "content": user_input}]},
         config={"callbacks": [deepeval_callback]},
-    ))
+    )
+
     reply = result["messages"][-1].content
     update_current_trace(output=reply)
     return reply
