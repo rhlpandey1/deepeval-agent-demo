@@ -8,7 +8,9 @@ from deepeval.metrics import GEval
 from deepeval.test_case import SingleTurnParams
 from deepeval.tracing import observe, update_current_trace
 from agent_instrumented import support_agent as _support_agent
+from claude_judge import ClaudeJudge
 
+judge = ClaudeJudge()
 
 @observe(name="support_agent")
 def support_agent(user_input: str) -> str:
@@ -27,7 +29,7 @@ correctness = GEval(
         "as the expected output. Minor wording differences are acceptable; "
         "missing or wrong facts are not."
     ),
-    model="gpt-4o",
+    model=judge,
     threshold=0.79,
     evaluation_params=[
         SingleTurnParams.INPUT,
@@ -40,10 +42,20 @@ dataset = EvaluationDataset(goldens = [
            expected_output= "order ORD-1042 is shipped and will arrive by May 13th")
 ])
 
-for golden in dataset.evals_iterator(metrics=[correctness]):
-    support_agent(golden.input)
+# for golden in dataset.evals_iterator(metrics=[correctness]):
+#     support_agent(golden.input)
+
+def run_evaluations():
+    for golden in dataset.evals_iterator(metrics=[correctness]):
+        support_agent(golden.input)
 
 
+def test_custom_metric_evaluation():
+    run_evaluations()
+
+
+if __name__ == "__main__":
+    run_evaluations()
 
 
 

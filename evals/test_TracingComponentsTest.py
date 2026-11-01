@@ -54,6 +54,21 @@ dataSet = EvaluationDataset(
     ]
 )
 
-for golden in dataSet.evals_iterator(metrics =[task_completion,tool_correctness]):
-    support_agent(golden.input)
+# for golden in dataSet.evals_iterator(metrics =[task_completion,tool_correctness]):
+#     support_agent(golden.input)
 
+def run_evaluations():
+    for golden in dataSet.evals_iterator(
+        metrics=[task_completion, tool_correctness]
+    ):
+        support_agent(golden.input)
+
+
+# Pytest execution
+def test_tracing_components():
+    run_evaluations()
+
+
+# Direct Python execution
+if __name__ == "__main__":
+    run_evaluations()

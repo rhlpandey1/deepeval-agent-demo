@@ -13,25 +13,65 @@ from agent_instrumented import support_agent
 from deepeval.evaluate import evaluate
 from deepeval.metrics import TaskCompletionMetric
 from deepeval.test_case import LLMTestCase
+
 from claude_judge import ClaudeJudge
 
-judge = ClaudeJudge()
+
+def run_evaluations():
+
+    # Initialize Claude as the evaluation judge
+    judge = ClaudeJudge()
+
+    # -------------------------------------------------------
+    # Execute the agent
+    # -------------------------------------------------------
+
+    user_input = "Where is my order ORD-1042?"
+
+    actual_output = support_agent(user_input)
+
+    print(f"Input: {user_input}")
+    print(f"Actual Output: {actual_output}")
+
+    # -------------------------------------------------------
+    # Create test case
+    # -------------------------------------------------------
+
+    test_case = LLMTestCase(
+        input=user_input,
+        actual_output=actual_output
+    )
+
+    # -------------------------------------------------------
+    # Define evaluation metric using Claude
+    # -------------------------------------------------------
+
+    task_completion_metric = TaskCompletionMetric(
+        threshold=0.6,
+        model=judge
+    )
+
+    # -------------------------------------------------------
+    # Execute evaluation
+    # -------------------------------------------------------
+
+    evaluate(
+        test_cases=[test_case],
+        metrics=[task_completion_metric]
+    )
 
 
+# -----------------------------------------------------------
+# Pytest execution
+# -----------------------------------------------------------
 
-actual_output = support_agent("Where is my order ORD-1042?")
+def test_task_completion():
+    run_evaluations()
 
-test_case = LLMTestCase(
-    input="Where is my order ORD-1042?",
-    actual_output=actual_output
-)
 
-evaluate(
-    test_cases=[test_case],
-    metrics=[
-        TaskCompletionMetric(
-            threshold=0.6,
-            model=judge
-        )
-    ]
-)
+# -----------------------------------------------------------
+# Direct Python execution
+# -----------------------------------------------------------
+
+if __name__ == "__main__":
+    run_evaluations()
