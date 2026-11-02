@@ -1,30 +1,24 @@
+
 """
 rag_agent.py
 ============
-A customer-support agent that answers questions by retrieving from a small
-in-memory policy knowledge base instead of calling fixed lookup functions.
 
-Architecture:
-  - Knowledge base: 9 policy documents stored as embeddings (OpenAI)
-  - Vector store: langchain_core InMemoryVectorStore (no external DB needed)
-  - Tool: search_policies(query) — semantic search, returns top-3 chunks
-  - LLM: GPT-4o (same as agent_plain.py, just with retrieval instead of hard-coded data)
-  - Instrumentation: DeepEval CallbackHandler + @observe, same 4-line pattern
-
-What's new vs agent_instrumented.py:
-  - search_policies tool replaces get_order_status / get_refund_policy
-  - Retrieved chunks are captured into the DeepEval trace as retrieval_context
-    so that RAG metrics (Faithfulness, Contextual Precision/Recall) can run
+Customer-support RAG agent using:
+- Claude Sonnet 4.6 for answer generation
+- Local Hugging Face embeddings for semantic retrieval
+- LangChain InMemoryVectorStore
+- DeepEval CallbackHandler and tracing
 """
 
 from dotenv import load_dotenv
-
 load_dotenv()
+
+from functools import lru_cache
 
 from langchain_core.tools import tool
 from langchain_core.vectorstores import InMemoryVectorStore
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_anthropic import ChatAnthropic
-from langchain_openai import OpenAIEmbeddings
 from langchain.agents import create_agent
 
 from deepeval.integrations.langchain import CallbackHandler
@@ -32,8 +26,9 @@ from deepeval.tracing.context import update_current_trace
 
 
 # ---------------------------------------------------------------------------
-# Knowledge base — product and shipping policies as plain-text documents.
+# Knowledge base
 # ---------------------------------------------------------------------------
+
 POLICY_DOCS = [
     # Refund policies
     "Electronics refund policy: Electronics can be returned within 15 days of delivery, "
@@ -75,35 +70,55 @@ POLICY_DOCS = [
 
 
 # ---------------------------------------------------------------------------
-# Build the vector store once at import time.
+# Lazy vector-store initialization
 # ---------------------------------------------------------------------------
-embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-vector_store = InMemoryVectorStore(embedding=embeddings)
-vector_store.add_texts(POLICY_DOCS)
+
+@lru_cache(maxsize=1)
+def get_vector_store():
+
+    embeddings = HuggingFaceEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2"
+    )
+
+    store = InMemoryVectorStore(embedding=embeddings)
+
+    store.add_texts(POLICY_DOCS)
+
+    return store
 
 
 # ---------------------------------------------------------------------------
-# Retrieval tool — returns top-3 policy chunks for a query.
-# Also stashes the retrieved text in a module-level list so the @observe
-# wrapper can forward it to the DeepEval trace as retrieval_context.
+# Retrieval tool
 # ---------------------------------------------------------------------------
+
 _last_retrieved: list[str] = []
 
 
 @tool
 def search_policies(query: str) -> str:
     """Search the customer-support knowledge base for policy information."""
+
     global _last_retrieved
+
+    vector_store = get_vector_store()
+
     docs = vector_store.similarity_search(query, k=3)
+
     chunks = [doc.page_content for doc in docs]
+
     _last_retrieved = chunks
+
     return "\n\n".join(chunks)
 
 
 # ---------------------------------------------------------------------------
-# Agent
+# Claude agent
 # ---------------------------------------------------------------------------
-llm = ChatAnthropic(model="claude-sonnet-4-6", temperature=0)
+
+llm = ChatAnthropic(
+    model="claude-sonnet-4-6",
+    temperature=0,
+)
 
 agent = create_agent(
     model=llm,
@@ -115,25 +130,42 @@ agent = create_agent(
     ),
 )
 
-# DeepEval callback handler — captures LangChain spans automatically.
+
+# ---------------------------------------------------------------------------
+# DeepEval callback handler
+# ---------------------------------------------------------------------------
+
 deepeval_callback = CallbackHandler()
 
 
 # ---------------------------------------------------------------------------
-# Entry point
+# RAG agent entry point
 # ---------------------------------------------------------------------------
+
 def rag_support_agent(user_input: str) -> str:
+
     """Run the RAG agent and return the final reply."""
+
     global _last_retrieved
+
     _last_retrieved = []
 
     result = agent.invoke(
-        {"messages": [{"role": "user", "content": user_input}]},
-        config={"callbacks": [deepeval_callback]},
+        {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": user_input,
+                }
+            ]
+        },
+        config={
+            "callbacks": [deepeval_callback]
+        },
     )
+
     reply = result["messages"][-1].content
 
-    # Set clean reply string and retrieved chunks on the trace.
     update_current_trace(
         output=reply,
         retrieval_context=_last_retrieved if _last_retrieved else None,
@@ -142,5 +174,15 @@ def rag_support_agent(user_input: str) -> str:
     return reply
 
 
+# ---------------------------------------------------------------------------
+# Standalone execution
+# ---------------------------------------------------------------------------
+
 if __name__ == "__main__":
-    print(rag_support_agent("What is the return policy for electronics?"))
+
+    response = rag_support_agent(
+        "What is the return policy for electronics?"
+    )
+
+    print("RAG Agent Response:")
+    print(response)
