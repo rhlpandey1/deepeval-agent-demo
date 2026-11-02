@@ -14,23 +14,34 @@ from deepeval.evaluate import evaluate
 from deepeval.metrics import TaskCompletionMetric
 from deepeval.test_case import LLMTestCase
 
-from claude_judge import ClaudeJudge
+from judge_factory import get_judge
+from dataset import GOLDEN_DATA
 
 
 def run_evaluations():
 
-    # Initialize Claude as the evaluation judge
-    judge = ClaudeJudge()
+    # Initialize the configured evaluation judge
+    judge = get_judge()
+
+    # -------------------------------------------------------
+    # Get test input and expected output from shared dataset
+    # -------------------------------------------------------
+
+    golden = next(
+        item for item in GOLDEN_DATA
+        if item["input"] == "Where is my order ORD-1042?"
+    )
+
+    user_input = golden["input"]
 
     # -------------------------------------------------------
     # Execute the agent
     # -------------------------------------------------------
 
-    user_input = "Where is my order ORD-1042?"
-
     actual_output = support_agent(user_input)
 
     print(f"Input: {user_input}")
+    print(f"Expected Output: {golden['expected_output']}")
     print(f"Actual Output: {actual_output}")
 
     # -------------------------------------------------------
@@ -39,11 +50,12 @@ def run_evaluations():
 
     test_case = LLMTestCase(
         input=user_input,
-        actual_output=actual_output
+        actual_output=actual_output,
+        expected_output=golden["expected_output"]
     )
 
     # -------------------------------------------------------
-    # Define evaluation metric using Claude
+    # Define evaluation metric
     # -------------------------------------------------------
 
     task_completion_metric = TaskCompletionMetric(

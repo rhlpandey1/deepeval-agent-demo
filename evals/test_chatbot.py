@@ -2,10 +2,8 @@
 import sys
 import os
 
-sys.path.insert(
-    0,
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, PROJECT_ROOT)
 
 from deepeval.evaluate import evaluate
 from deepeval.metrics import (
@@ -16,13 +14,13 @@ from deepeval.metrics import (
 from deepeval.test_case import ConversationalTestCase, Turn
 
 from chatbot import chat
-from claude_judge import ClaudeJudge
+from judge_factory import get_judge
 
 
 def run_evaluations():
 
-    # Use Claude instead of DeepEval's default OpenAI model
-    judge = ClaudeJudge()
+    # Use the configured evaluation provider (Claude/OpenAI)
+    judge = get_judge()
 
     # -------------------------------------------------------
     # Run multi-turn chatbot conversation
@@ -72,7 +70,7 @@ def run_evaluations():
     )
 
     # -------------------------------------------------------
-    # Define metrics using ClaudeJudge
+    # Define metrics using configured judge
     # -------------------------------------------------------
 
     turn_relevancy_metric = TurnRelevancyMetric(
